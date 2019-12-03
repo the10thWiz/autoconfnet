@@ -7,6 +7,7 @@ pub enum IPType {
     SubnetAddr,
     Public,
     Broadcast,
+    None,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -18,7 +19,7 @@ pub enum IPClass {
 }
 
 pub enum IPError {
-    BadMask(u32)
+    BadMask(u32),
 }
 
 pub trait IP: fmt::Display + Copy + Eq {
@@ -37,7 +38,7 @@ pub trait IP: fmt::Display + Copy + Eq {
     fn num_hosts(&self) -> u32;
 }
 
-const IP_4_PART: u32 = 0xFF;// 8 bits
+const IP_4_PART: u32 = 0xFF; // 8 bits
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct IPv4 {
     ip: u32,
@@ -48,7 +49,10 @@ pub struct IPv4 {
 
 impl IPv4 {
     fn ip_part(s: Option<&str>, part: u32) -> u32 {
-        let ret = s.expect("Expected at least 4 nums").parse::<u32>().expect("IP parts are ints");
+        let ret = s
+            .expect("Expected at least 4 nums")
+            .parse::<u32>()
+            .expect("IP parts are ints");
         if ret > 0xFF {
             panic!("{} is not a valid ip part", ret);
         }
@@ -58,21 +62,39 @@ impl IPv4 {
         let mut tmp = ip.split('/');
         // ip addr
         let mut ip_split = tmp.next().expect("Address expected").split('.');
-        let ip = Self::ip_part(ip_split.next(), 24) | Self::ip_part(ip_split.next(), 16) | Self::ip_part(ip_split.next(), 8) |
-            Self::ip_part(ip_split.next(), 0);
+        let ip = Self::ip_part(ip_split.next(), 24)
+            | Self::ip_part(ip_split.next(), 16)
+            | Self::ip_part(ip_split.next(), 8)
+            | Self::ip_part(ip_split.next(), 0);
         if !ip_split.next().is_none() {
             panic!("Too many `.` in ip: {}", ip);
         }
         // mask
-        let mask = u32::max_value() << (32 - tmp.next().expect("Mask not provided").parse::<u32>().expect("Mask was not int"));
+        let mask = u32::max_value()
+            << (32
+                - tmp
+                    .next()
+                    .expect("Mask not provided")
+                    .parse::<u32>()
+                    .expect("Mask was not int"));
         // check format
         if !tmp.next().is_none() {
             panic!("Too many `/` in ip: {}", ip);
         }
         if ip & mask == 0 {
-            Self {ip, mask, super_mask: 0, ip_type: IPType::Network}
-        }else {
-            Self {ip, mask, super_mask: 0, ip_type: IPType::Public}
+            Self {
+                ip,
+                mask,
+                super_mask: 0,
+                ip_type: IPType::Network,
+            }
+        } else {
+            Self {
+                ip,
+                mask,
+                super_mask: 0,
+                ip_type: IPType::Public,
+            }
         }
     }
     fn mask_num(&self) -> u32 {
@@ -87,24 +109,35 @@ impl IPv4 {
     pub fn build_net(network: Self, num_net: u32) -> Vec<Self> {
         // num_net <= 2^n
         let mut bits = 0;
-        for i in 0..32-network.mask_num() {
+        for i in 0..32 - network.mask_num() {
             if num_net <= (1 << i) {
                 bits = i;
                 break;
             }
         }
         // sub sub net bits = bits
-        let mask = u32::max_value() << (32 - (network.mask_num()+bits));
+        let mask = u32::max_value() << (32 - (network.mask_num() + bits));
         let mut ret = Vec::new();
         for i in 0..1 << bits {
             ret.push(Self {
-                ip: network.ip | (i << (32 - (network.mask_num()+bits))),
+                ip: network.ip | (i << (32 - (network.mask_num() + bits))),
                 mask,
                 super_mask: network.mask,
-                ip_type: IPType::Network
+                ip_type: IPType::Network,
             });
         }
         ret
+    }
+}
+
+impl Default for IPv4 {
+    fn default() -> Self {
+        Self {
+            ip: 0,
+            mask: 0,
+            super_mask: 0,
+            ip_type: IPType::None,
+        }
     }
 }
 
@@ -112,7 +145,7 @@ impl IP for IPv4 {
     fn next(&self) -> Option<Self> {
         if self.ip & self.mask != (self.ip + 1) & self.mask {
             None
-        }else {
+        } else {
             Some(Self {
                 ip: self.ip + 1,
                 mask: self.mask,
@@ -201,7 +234,7 @@ impl IP for IPv4 {
         for i in (0..32).rev() {
             if self.mask & (1 << i) == 0 {
                 end = true;
-            }else if end {
+            } else if end {
                 return Err(IPError::BadMask(self.mask));
             }
         }
@@ -217,29 +250,50 @@ impl IP for IPv4 {
 
 impl fmt::Display for IPv4 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}.{}.{}.{}/{}",
-            (self.ip >> 24) & IP_4_PART,
-            (self.ip >> 16) & IP_4_PART,
-            (self.ip >> 8) & IP_4_PART,
-            (self.ip) & IP_4_PART,
-            self.mask_num()
-        )
+        if f.alternate() || self.ip_type == IPType::SubnetMask {
+            write!(
+                f,
+                "{}.{}.{}.{}",
+                (self.ip >> 24) & IP_4_PART,
+                (self.ip >> 16) & IP_4_PART,
+                (self.ip >> 8) & IP_4_PART,
+                (self.ip) & IP_4_PART
+            )
+        } else {
+            write!(
+                f,
+                "{}.{}.{}.{}/{}",
+                (self.ip >> 24) & IP_4_PART,
+                (self.ip >> 16) & IP_4_PART,
+                (self.ip >> 8) & IP_4_PART,
+                (self.ip) & IP_4_PART,
+                self.mask_num()
+            )
+        }
     }
 }
 
-
 impl fmt::Binary for IPv4 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{:08b}.{:08b}.{:08b}.{:08b}/{}",
-            (self.ip >> 24) & IP_4_PART,
-            (self.ip >> 16) & IP_4_PART,
-            (self.ip >> 8) & IP_4_PART,
-            (self.ip) & IP_4_PART,
-            self.mask_num()
-        )
+        if f.alternate() || self.ip_type == IPType::SubnetMask {
+            write!(
+                f,
+                "{:08b}.{:08b}.{:08b}.{:08b}",
+                (self.ip >> 24) & IP_4_PART,
+                (self.ip >> 16) & IP_4_PART,
+                (self.ip >> 8) & IP_4_PART,
+                (self.ip) & IP_4_PART
+            )
+        } else {
+            write!(
+                f,
+                "{:08b}.{:08b}.{:08b}.{:08b}/{}",
+                (self.ip >> 24) & IP_4_PART,
+                (self.ip >> 16) & IP_4_PART,
+                (self.ip >> 8) & IP_4_PART,
+                (self.ip) & IP_4_PART,
+                self.mask_num()
+            )
+        }
     }
 }

@@ -1,0 +1,59 @@
+Conf {
+    "secret": Simple("class", false),
+    "password": Simple("cisco", false),
+    "rip.network": List([
+        {
+            "network": IP(IPv4 { ip: 0, mask: 0, super_mask: 0, ip_type: None
+            }, false)
+        }
+    ]),
+    "default": Selected("",
+    [
+        "no"
+    ], false),
+    "dns": Selected("no",
+    [
+        "no"
+    ], true),
+    "rip.autosum": Selected("",
+    [
+        "no"
+    ], false),
+    "interface": List([
+        {
+            "description": Simple("", false),
+            "ip": IP(IPv4 { ip: 0, mask: 0, super_mask: 0, ip_type: None
+            }, false),
+            "iface": Interface(None, false),
+            "clockrate": Selected("",
+            [
+                "128000"
+            ], false)
+        },
+        {
+            "description": Simple("", false),
+            "ip": IP(IPv4 { ip: 3232235521, mask: 4294967040, super_mask: 0, ip_type: Public
+            }, false),
+            "iface": Interface(None, false),
+            "clockrate": Selected("",
+            [
+                "128000"
+            ], false)
+        }
+    ]),
+    "rip.passive": List([
+        {
+            "iface": Interface(None, false)
+        }
+    ]),
+    "route": List([
+        {
+            "mask": IP(IPv4 { ip: 0, mask: 0, super_mask: 0, ip_type: None
+            }, false),
+            "ip": IP(IPv4 { ip: 0, mask: 0, super_mask: 0, ip_type: None
+            }, false),
+            "distance": Range(-1, 0..100, true),
+            "exit": Interface(None, false)
+        }
+    ])
+}
