@@ -176,7 +176,7 @@ impl Conf {
         }
         self
     }
-    pub fn set_list(
+    pub fn set_list_item(
         mut self,
         keys: &[(&str, usize)],
         key: impl Into<String>,
@@ -192,6 +192,19 @@ impl Conf {
             }
         }
         Self::set_value(cur, key.into(), value.into());
+        self
+    }
+    pub fn add_list_vec(mut self, key: impl Into<String>, vals: Vec<(&str, &str)>) -> Self {
+        match self.vals.get_mut(&key.into()).expect("Key doesn't exist") {
+            Value::List(v) => {
+                let mut new = v[0].clone();
+                for (k, v) in vals {
+                    Self::set_value(&mut new, k.to_owned(), v.to_owned());
+                }
+                v.push(new);
+            }
+            _ => panic!("Key isn't a list"),
+        }
         self
     }
     fn compile_line(mut tmp: &str, vals: &HashMap<String, Value>) -> String {

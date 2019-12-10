@@ -7,6 +7,8 @@ pub enum IPType {
     SubnetAddr,
     Public,
     Broadcast,
+    DHCP,
+    Empty,
     None,
 }
 
@@ -59,41 +61,50 @@ impl IPv4 {
         ret << part
     }
     pub fn parse(ip: &str) -> Self {
-        let mut tmp = ip.split('/');
-        // ip addr
-        let mut ip_split = tmp.next().expect("Address expected").split('.');
-        let ip = Self::ip_part(ip_split.next(), 24)
-            | Self::ip_part(ip_split.next(), 16)
-            | Self::ip_part(ip_split.next(), 8)
-            | Self::ip_part(ip_split.next(), 0);
-        if !ip_split.next().is_none() {
-            panic!("Too many `.` in ip: {}", ip);
-        }
-        // mask
-        let mask = u32::max_value()
-            << (32
-                - tmp
-                    .next()
-                    .expect("Mask not provided")
-                    .parse::<u32>()
-                    .expect("Mask was not int"));
-        // check format
-        if !tmp.next().is_none() {
-            panic!("Too many `/` in ip: {}", ip);
-        }
-        if ip & mask == 0 {
+        if ip == "dhcp" {
             Self {
-                ip,
-                mask,
+                ip: 0,
+                mask: 0,
                 super_mask: 0,
-                ip_type: IPType::Network,
+                ip_type: IPType::DHCP,
             }
         } else {
-            Self {
-                ip,
-                mask,
-                super_mask: 0,
-                ip_type: IPType::Public,
+            let mut tmp = ip.split('/');
+            // ip addr
+            let mut ip_split = tmp.next().expect("Address expected").split('.');
+            let ip = Self::ip_part(ip_split.next(), 24)
+                | Self::ip_part(ip_split.next(), 16)
+                | Self::ip_part(ip_split.next(), 8)
+                | Self::ip_part(ip_split.next(), 0);
+            if !ip_split.next().is_none() {
+                panic!("Too many `.` in ip: {}", ip);
+            }
+            // mask
+            let mask = u32::max_value()
+                << (32
+                    - tmp
+                        .next()
+                        .expect("Mask not provided")
+                        .parse::<u32>()
+                        .expect("Mask was not int"));
+            // check format
+            if !tmp.next().is_none() {
+                panic!("Too many `/` in ip: {}", ip);
+            }
+            if ip & mask == 0 {
+                Self {
+                    ip,
+                    mask,
+                    super_mask: 0,
+                    ip_type: IPType::Network,
+                }
+            } else {
+                Self {
+                    ip,
+                    mask,
+                    super_mask: 0,
+                    ip_type: IPType::Public,
+                }
             }
         }
     }
@@ -182,11 +193,20 @@ impl IP for IPv4 {
         }
     }
     fn subnet_mask(&self) -> Self {
-        Self {
-            ip: self.mask,
-            mask: 0,
-            super_mask: 0,
-            ip_type: IPType::SubnetMask,
+        if self.ip_type == IPType::DHCP {
+            Self {
+                ip: 0,
+                mask: 0,
+                super_mask: 0,
+                ip_type: IPType::Empty,
+            }
+        }else {
+            Self {
+                ip: self.mask,
+                mask: 0,
+                super_mask: 0,
+                ip_type: IPType::SubnetMask,
+            }
         }
     }
     fn subnet_addr(&self) -> Self {
@@ -250,25 +270,31 @@ impl IP for IPv4 {
 
 impl fmt::Display for IPv4 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if f.alternate() || self.ip_type == IPType::SubnetMask {
-            write!(
-                f,
-                "{}.{}.{}.{}",
-                (self.ip >> 24) & IP_4_PART,
-                (self.ip >> 16) & IP_4_PART,
-                (self.ip >> 8) & IP_4_PART,
-                (self.ip) & IP_4_PART
-            )
+        if self.ip_type == IPType::DHCP {
+            write!(f, "dhcp")
+        } else if self.ip_type == IPType::Empty {
+            Ok(())
         } else {
-            write!(
-                f,
-                "{}.{}.{}.{}/{}",
-                (self.ip >> 24) & IP_4_PART,
-                (self.ip >> 16) & IP_4_PART,
-                (self.ip >> 8) & IP_4_PART,
-                (self.ip) & IP_4_PART,
-                self.mask_num()
-            )
+            if f.alternate() || self.ip_type == IPType::SubnetMask {
+                write!(
+                    f,
+                    "{}.{}.{}.{}",
+                    (self.ip >> 24) & IP_4_PART,
+                    (self.ip >> 16) & IP_4_PART,
+                    (self.ip >> 8) & IP_4_PART,
+                    (self.ip) & IP_4_PART
+                )
+            } else {
+                write!(
+                    f,
+                    "{}.{}.{}.{}/{}",
+                    (self.ip >> 24) & IP_4_PART,
+                    (self.ip >> 16) & IP_4_PART,
+                    (self.ip >> 8) & IP_4_PART,
+                    (self.ip) & IP_4_PART,
+                    self.mask_num()
+                )
+            }
         }
     }
 }
