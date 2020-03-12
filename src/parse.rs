@@ -3,6 +3,7 @@ use crate::interface::*;
 use crate::ip::*;
 use std::collections::HashMap;
 use std::ops::*;
+use std::default::Default;
 
 #[derive(Debug, Clone)]
 enum Value {
@@ -335,7 +336,7 @@ impl Conf {
                 ret += " ";
             }
         }
-        ret
+        ret.trim().to_owned()
     }
     fn compile_pattern(
         v: &Vec<String>,

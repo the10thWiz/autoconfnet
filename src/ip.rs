@@ -1,4 +1,5 @@
 use std::fmt;
+use std::default::Default;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum IPType {
